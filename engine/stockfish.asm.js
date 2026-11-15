@@ -1,0 +1,2 @@
+function __xadrezParts(ns){var bufs=[],t=0;ns.forEach(function(n){var x=new XMLHttpRequest();x.open('GET',n,false);x.responseType='arraybuffer';x.send();if(x.status!==200&&x.status!==0)throw new Error('falha ao ler '+n);var u=new Uint8Array(x.response);bufs.push(u);t+=u.length;});var out=new Uint8Array(t),o=0;bufs.forEach(function(u){out.set(u,o);o+=u.length;});return out;}
+(0,eval)(new TextDecoder().decode(__xadrezParts(["stockfish.asm.js.part1", "stockfish.asm.js.part2"])));
