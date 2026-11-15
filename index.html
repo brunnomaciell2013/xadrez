@@ -709,6 +709,56 @@ button,.btn,.vbtn,.chc,.qopt,.sq{touch-action:manipulation}
 }
 .lqtop{display:none;margin:0 0 8px;padding:10px 12px;border-radius:12px;background:var(--surface);border:1px solid var(--line);font-size:.95rem;line-height:1.35}
 .lqtop .fb{margin:6px 0 0;padding:6px 10px;font-size:.9rem}
+
+/* ===== Professor virtual (avatar + balão) ===== */
+.tutor{display:flex;gap:10px;align-items:flex-start;padding:12px;border-bottom:1px solid var(--line)}
+.tutor[hidden]{display:none}
+#view-analysis .tutor{border:1px solid var(--line);border-radius:12px;background:var(--surface);margin:8px 0}
+.tav{flex:none;width:68px;height:68px;border-radius:50%;filter:drop-shadow(0 2px 4px rgba(0,0,0,.15))}
+.tav-svg{width:100%;height:100%;display:block;overflow:visible}
+.tav-bg{fill:var(--accent-soft)}
+.tav-coat{fill:#2f5f52}.tav-tie{fill:#9b2b3a}
+.tav-skin{fill:#efcaa6}.tav-skin2{fill:#e2b58e}
+.tav-hair{fill:#d7d7d4}.tav-beard{fill:#e6e6e2}
+.tav-mus{fill:none;stroke:#cfcfca;stroke-width:3.2;stroke-linecap:round}
+.tav-brow{fill:none;stroke:#b5b5b0;stroke-width:2.6;stroke-linecap:round;transition:transform .25s ease;transform-box:fill-box;transform-origin:center}
+.tav-eyes circle{fill:#2a2a2a}
+.tav-eyes{transform-box:fill-box;transform-origin:center;animation:tblink 5.5s infinite}
+.tav-glasses circle{fill:rgba(255,255,255,.14);stroke:#3b3b3b;stroke-width:1.7}
+.tav-glasses path{fill:none;stroke:#3b3b3b;stroke-width:1.7;stroke-linecap:round}
+.tav-head{transform-box:view-box;transform-origin:50px 72px;transition:transform .35s ease}
+.tav .m{fill:#7a3a2e;stroke:#7a3a2e;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;display:none}
+.tav .m-neutral,.tav .m-worry{fill:none}
+.tav.expr-neutral .m-neutral,.tav.expr-think .m-neutral,.tav.expr-happy .m-happy,.tav.expr-surprise .m-surprise,.tav.expr-worry .m-worry{display:block}
+.tav.talk .m{display:none!important}
+.tav.talk .m-open{display:block!important;transform-box:fill-box;transform-origin:center top;animation:ttalk .28s ease-in-out infinite alternate}
+.tav.expr-happy .tav-brow{transform:translateY(-1.6px)}
+.tav.expr-surprise .tav-brow{transform:translateY(-3.4px)}
+.tav.expr-worry .tav-brow.l{transform:rotate(14deg) translateY(-1px)}.tav.expr-worry .tav-brow.r{transform:rotate(-14deg) translateY(-1px)}
+.tav.expr-think .tav-brow.l{transform:translateY(-2.4px)}.tav.expr-think .tav-head{transform:rotate(-4deg)}
+.tav.expr-worry .tav-head{transform:rotate(3deg)}
+.tav.pop{animation:tpop .7s ease}
+@keyframes tblink{0%,94%,100%{transform:scaleY(1)}96%{transform:scaleY(.12)}}
+@keyframes ttalk{from{transform:scaleY(.35)}to{transform:scaleY(1)}}
+@keyframes tpop{0%{transform:translateY(0) scale(1)}30%{transform:translateY(-5px) scale(1.06)}60%{transform:translateY(0) scale(.98)}100%{transform:none}}
+@media (prefers-reduced-motion:reduce){.tav-eyes,.tav.pop,.tav.talk .m-open{animation:none!important}}
+.tbub{flex:1;min-width:0;position:relative;background:var(--surface2);border:1px solid var(--line);border-radius:12px;padding:8px 10px 9px}
+.tbub::before{content:"";position:absolute;left:-7px;top:18px;width:12px;height:12px;background:var(--surface2);border-left:1px solid var(--line);border-bottom:1px solid var(--line);transform:rotate(45deg)}
+.tutor.alert .tbub,.tutor.alert .tbub::before{border-color:color-mix(in srgb,var(--c-grave) 55%,var(--line))}
+.tb-h{display:flex;justify-content:space-between;align-items:center;gap:6px}
+.tb-t{font-size:.9rem;line-height:1.25}
+.tb-a{display:flex;gap:4px;flex:none}
+.tb-btn{background:var(--surface);border:1px solid var(--line);border-radius:8px;min-width:32px;height:32px;cursor:pointer;color:var(--ink);font-size:.95rem;padding:0 6px}
+.tb-btn.on{border-color:var(--accent);background:var(--accent-soft)}
+.tb-x{font-size:.92rem;line-height:1.45;margin-top:3px}
+.tb-acts{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px}.tb-acts:empty{display:none}
+@media (max-width:860px){
+  .tutor{padding:10px 8px;gap:8px}
+  .tav{width:52px;height:52px}
+  .tb-x{font-size:.9rem}
+  .tb-btn{min-width:44px;height:44px}
+  .tbub::before{top:14px}
+}
 </style>
 </head>
 <body>
@@ -2524,6 +2574,279 @@ if (typeof module !== 'undefined') module.exports = Coach;
 
 </script>
 <script data-app="1">
+/* Professor virtual: avatar (desenho próprio, SVG), voz local do navegador e explicações
+   baseadas SOMENTE na posição real do tabuleiro e nas avaliações do Stockfish.
+   Nenhuma chamada externa; nenhuma frase aleatória: cada comentário vem de um fato verificado
+   (avaliação do motor, material, peças atacadas, motivos táticos detectados no tabuleiro). */
+var Tutor = (function (C, Coach) {
+  'use strict';
+  var NAMES = { p: 'peão', n: 'cavalo', b: 'bispo', r: 'torre', q: 'dama', k: 'rei' };
+  var ART = { p: 'o', n: 'o', b: 'o', r: 'a', q: 'a', k: 'o' };
+  function oNome(p) { return ART[p.toLowerCase()] + ' ' + NAMES[p.toLowerCase()]; }
+  function pcName(g, s) { return oNome(g.b[s]) + ' em ' + C.sqName(s); }
+  function cap(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
+  function sanPT(s) { return Coach.sanPT(s); }
+  function pts(cp) { var v = Math.max(1, Math.round(Math.abs(cp) / 100)); return v === 1 ? 'um peão' : (v >= 9 ? 'material decisivo' : v + ' pontos de material'); }
+  function sanOf(fen, u) { var g = new C.Game(fen), m = g.moveFromUci(u); return m ? sanPT(g.san(m)) : null; }
+  function pvSans(fen, pv, n) { var g = new C.Game(fen), out = []; for (var i = 0; i < Math.min(pv.length, n); i++) { var m = g.moveFromUci(pv[i]); if (!m) break; out.push(sanPT(g.san(m))); g.make(m); } return out; }
+
+  // ---------- classificação (mesmos limites da análise pós-partida: 2 / 5 / 10 / 20 pontos de probabilidade) ----------
+  function classOf(drop, isBest, nLegal, brilliant) {
+    if (nLegal === 1) return 'Única jogada possível';
+    if (isBest || drop < 0.5) return brilliant ? 'Brilhante' : 'Melhor jogada';
+    if (drop <= 2) return 'Excelente';
+    if (drop <= 5) return 'Boa';
+    if (drop <= 10) return 'Imprecisão';
+    if (drop <= 20) return 'Erro';
+    return 'Erro grave';
+  }
+  var GOOD_MOTIFS = ['mate', 'ameaca_mate', 'garfo', 'captura', 'espeto', 'cravada', 'descoberto', 'promocao', 'defesa', 'ameaca', 'roque', 'xeque'];
+  function topMotif(list, kinds) {
+    kinds = kinds || GOOD_MOTIFS;
+    for (var i = 0; i < kinds.length; i++) { var f = list.filter(function (x) { return x.k === kinds[i]; })[0]; if (f) return f; }
+    return null;
+  }
+
+  // julga o lance do aluno. o: {fen, uci, best:{u,s,pv}, played:{s,pv}}
+  // best e played vêm da MESMA busca do Stockfish (searchmoves ou multipv), do ponto de vista de quem joga em fen.
+  function judgeMove(o) {
+    var g = new C.Game(o.fen), me = g.turn, opp = me === 'w' ? 'b' : 'w', legal = g.moves(), m = g.moveFromUci(o.uci);
+    if (!m) return null;
+    var san = sanPT(g.san(m, legal));
+    var bestU = o.best && o.best.u, bestSan = bestU ? sanOf(o.fen, bestU) : null;
+    var cpB = Coach.cpOf(o.best.s), cpA = Coach.cpOf(o.played.s);
+    var isBest = o.uci === bestU || cpA >= cpB;
+    if (cpA > cpB) cpB = cpA;
+    var drop = isBest ? 0 : Math.max(0, Coach.winPct(cpB) - Coach.winPct(cpA));
+    var A = new C.Game(o.fen); A.make(A.moveFromUci(o.uci));
+    var st = A.status();
+    var motifs = Coach.motifsOf(o.fen, o.uci);
+    // sacrifício: a peça movida pode ser capturada com ganho, mas o motor confirma o lance
+    var sacrifice = false, movedVal = C.VAL[(m.promotion || m.piece).toLowerCase()];
+    if (movedVal >= 300 && !(st && st.reason === 'checkmate')) {
+      var seeTo = A.attackers(m.to, opp).length ? A.see(m.to, opp) : 0, took = m.captured ? C.VAL[m.captured.toLowerCase()] : 0;
+      if (seeTo - took >= 200) sacrifice = true;
+    }
+    var wpA = Coach.winPct(cpA), wpB = Coach.winPct(cpB);
+    var cls = classOf(drop, isBest, legal.length, sacrifice && isBest && wpA >= 50 && wpB < 92);
+    var r = { cls: cls, drop: drop, cpB: cpB, cpA: cpA, san: san, bestSan: bestSan, best: bestU, uci: o.uci, motifs: motifs, arrows: [], marks: [], speak: false, expr: 'neutral' };
+    var evalTxt = ' (avaliação: ' + Coach.fmtEvalMover(cpB) + ' → ' + Coach.fmtEvalMover(cpA) + ')';
+    if (st && st.reason === 'checkmate') {
+      return Object.assign(r, { cls: 'Xeque-mate', title: 'Xeque-mate!', text: san + ' dá xeque-mate. Parabéns, partida vencida com um final preciso.', expr: 'happy', speak: true, key: 'mate' });
+    }
+    if (cls === 'Única jogada possível') return Object.assign(r, { title: 'Lance forçado', text: san + ' era o único lance legal.', key: 'forced' });
+    var mot = topMotif(motifs);
+    if (cls === 'Brilhante') {
+      return Object.assign(r, { title: 'Brilhante!', text: san + ' entrega material, mas o Stockfish confirma que é o melhor lance: a compensação é real' + (mot ? ' — o lance ' + mot.t : '') + '.', expr: 'happy', speak: true, marks: mot && mot.sq ? mot.sq : [], key: 'brill' });
+    }
+    if (cls === 'Melhor jogada' || cls === 'Excelente') {
+      var tactical = mot && ['mate', 'ameaca_mate', 'garfo', 'captura', 'espeto', 'cravada', 'descoberto', 'promocao', 'defesa'].indexOf(mot.k) >= 0;
+      var head = cls === 'Melhor jogada' ? (tactical ? 'Excelente lance!' : 'Melhor jogada') : 'Ótimo lance';
+      var txt;
+      if (mot) txt = san + ' ' + mot.t + '.' + (cls === 'Melhor jogada' ? ' É exatamente o que o Stockfish recomenda.' : '');
+      else {
+        var dev = (m.piece.toLowerCase() === 'n' || m.piece.toLowerCase() === 'b') && (me === 'w' ? [57, 62, 58, 61] : [1, 6, 2, 5]).indexOf(m.from) >= 0 && g.full <= 12;
+        var center = m.piece.toLowerCase() === 'p' && [3, 4].indexOf(m.from & 7) >= 0 && g.full <= 8;
+        txt = san + (dev ? ' desenvolve uma peça menor, como pede a abertura.' : center ? ' ocupa o centro com um peão central.' : (cls === 'Melhor jogada' ? ' é o lance que o Stockfish escolheria.' : ' mantém a avaliação praticamente igual à do melhor lance.'));
+      }
+      return Object.assign(r, { title: head, text: txt, expr: tactical ? 'happy' : 'neutral', speak: tactical || (mot && mot.k === 'roque'), marks: mot && mot.sq ? mot.sq : [], key: 'good:' + (mot ? mot.k : 'quiet') });
+    }
+    // lances com perda: explicar com fatos
+    var bestMot = bestU ? topMotif(Coach.motifsOf(o.fen, bestU), ['mate', 'ameaca_mate', 'garfo', 'captura', 'espeto', 'cravada', 'descoberto', 'promocao', 'defesa', 'ameaca', 'roque']) : null;
+    if (bestU) { var bm = g.moveFromUci(bestU); if (bm) r.arrows.push({ from: bm.from, to: bm.to, c: 'best' }); }
+    if (cls === 'Boa') return Object.assign(r, { title: 'Boa jogada', text: san + ' é um lance correto.' + (bestSan ? ' ' + bestSan + ' era um pouco mais preciso' + (bestMot ? ', porque ' + bestMot.t : '') + '.' : ''), key: 'ok' });
+    if (cls === 'Imprecisão') return Object.assign(r, { title: 'Imprecisão', text: san + ' não estraga a posição, mas perde um pouco da vantagem.' + (bestSan ? ' Melhor era ' + bestSan + (bestMot ? ', que ' + bestMot.t : '') + '.' : '') + evalTxt, expr: 'think', speak: !!bestMot, key: 'inacc' });
+    // Erro / Erro grave
+    var parts = [], ppv = (o.played.pv || []).slice(), reply = null;
+    if (ppv[0] === o.uci) ppv.shift();
+    if (ppv.length) { var rm = A.moveFromUci(ppv[0]); if (rm) reply = sanPT(A.san(rm)); if (rm) r.arrows.push({ from: rm.from, to: rm.to, c: 'bad' }); }
+    var sA = o.played.s || {};
+    if (sA.mate !== undefined && sA.mate < 0) parts.push('Depois de ' + san + ', o adversário tem xeque-mate em ' + Math.abs(sA.mate) + (reply ? ', começando com ' + reply : '') + '.');
+    else if (o.best.s && o.best.s.mate > 0) parts.push('Você tinha xeque-mate em ' + o.best.s.mate + ' com ' + bestSan + '!');
+    else {
+      var out = ppv.length ? Coach.lineOutcome(A.fen(), ppv, me, 6) : null;
+      var hang = Coach.hangingFor(A, me);
+      if (hang && hang.gain >= 200 && !reply) {   // sem variante do motor: a captura pela peça de menor valor
+        var cands = A.moves().filter(function (x) { return x.to === hang.sq; }).sort(function (a, b) { return C.VAL[a.piece.toLowerCase()] - C.VAL[b.piece.toLowerCase()]; });
+        if (cands[0]) { reply = sanPT(A.san(cands[0])); r.arrows.push({ from: cands[0].from, to: cands[0].to, c: 'bad' }); }
+      }
+      var hangB = Coach.hangingFor(new C.Game(o.fen), me);
+      if (hang && hang.gain >= 200 && hangB && hangB.sq === hang.sq && m.from !== hang.sq && (!out || out.gain <= -200)) {
+        parts.push(cap(pcName(A, hang.sq)) + ' já estava atacad' + ART[A.b[hang.sq].toLowerCase()] + ' e continua sem proteção' + (reply ? ': o adversário pode jogar ' + reply + ' e ganhar material' : '') + '.');
+        r.marks.push(hang.sq);
+      } else if (hang && hang.gain >= 200 && (!out || out.gain <= -200)) {
+        parts.push(san + ' deixa ' + pcName(A, hang.sq) + ' sem proteção suficiente' + (reply ? ': o adversário responde ' + reply + ' e ganha material' : '') + '.');
+        r.marks.push(hang.sq);
+      } else if (out && out.gain <= -100 && reply) {
+        parts.push('Depois de ' + san + ', o adversário responde ' + reply + ' e você perde ' + pts(out.gain) + (out.sans.length > 2 ? ' (' + out.sans.slice(0, 4).join(' ') + ')' : '') + '.');
+      } else if (out && out.mate === 'opp') {
+        parts.push('Depois de ' + san + ', a sequência ' + out.sans.join(' ') + ' termina em xeque-mate contra você.');
+      } else if (reply) {
+        parts.push('O adversário responde ' + reply + ' e fica com uma posição melhor.');
+      }
+    }
+    var missedMate = o.best.s && o.best.s.mate > 0 && !(sA.mate !== undefined && sA.mate < 0);
+    if (bestSan && !missedMate) parts.push((bestMot ? 'O certo era ' + bestSan + ', que ' + bestMot.t : 'O melhor era ' + bestSan) + '.');
+    if (!parts.length) parts.push('O Stockfish avalia que a posição piorou de forma relevante.');
+    return Object.assign(r, { title: cls === 'Erro grave' ? 'Erro grave!' : 'Erro', text: parts.join(' ') + evalTxt, expr: cls === 'Erro grave' ? 'surprise' : 'worry', speak: true, key: 'err' });
+  }
+
+  // avisos ANTES do lance do aluno (depois do lance do adversário): ameaças e oportunidades confirmadas.
+  // o: {fen, lines:[{u,s,pv}]} — lines da busca do Stockfish na posição, do ponto de vista de quem joga.
+  function watchHints(o) {
+    var g = new C.Game(o.fen), me = g.turn, out = [];
+    if (g.status()) return out;
+    var lines = o.lines || [], best = lines[0];
+    // oportunidade: o melhor lance ganha material ou dá mate, e a diferença para o 2º lance é grande
+    if (best && best.s) {
+      var gap = lines[1] ? Coach.winPct(Coach.cpOf(best.s)) - Coach.winPct(Coach.cpOf(lines[1].s)) : 50;
+      var bm = g.moveFromUci(best.u);
+      if (bm && best.s.mate > 0 && best.s.mate <= 3 && gap >= 5) {
+        out.push({ k: 'op-mate', prio: 3, title: 'Oportunidade!', text: 'Existe xeque-mate em ' + best.s.mate + ' nesta posição. Procure lances forçantes: xeques primeiro.', expr: 'surprise', speak: true, key: 'opmate:' + o.fen, hintSq: bm.from });
+      } else if (bm && gap >= 8) {
+        var res = Coach.lineOutcome(o.fen, best.pv || [best.u], me, 6), mots = Coach.motifsOf(o.fen, best.u);
+        var tm = topMotif(mots, ['garfo', 'captura', 'espeto', 'cravada', 'descoberto', 'ameaca_mate', 'xeque', 'promocao']);
+        if (res.gain >= 200 && tm) out.push({ k: 'op', prio: 1, title: 'Há uma tática aqui', text: 'Há uma oportunidade de ganhar material nesta posição. Dica: observe o que ' + oNome(g.b[bm.from]) + ' em ' + C.sqName(bm.from) + ' pode fazer.', expr: 'surprise', speak: true, key: 'op:' + o.fen, hintSq: bm.from });
+      }
+    }
+    // ameaças do adversário (o que ele faria se fosse a vez dele), checadas no tabuleiro
+    if (!g.inCheck()) {
+      Coach.threatsAgainst(o.fen).forEach(function (t) {
+        if (t.k === 'mate') out.push({ k: 'th-mate', prio: 4, title: 'Perigo!', text: 'Atenção: o adversário ameaça xeque-mate com ' + t.t.replace(/^.*mate com /, '') + '. Defenda-se antes de qualquer outra coisa.', expr: 'worry', speak: true, key: 'thmate:' + t.t, arrows: t.arrow ? [{ from: t.arrow[0], to: t.arrow[1], c: 'bad' }] : [] });
+        else if (t.k === 'peca' && t.sq && g.b[t.sq[0]] && g.b[t.sq[0]].toLowerCase() !== 'p') out.push({ k: 'th', prio: 2, title: 'Cuidado', text: cap(t.t.replace('o adversário ameaçava', 'o adversário ameaça')) + '. Proteja a peça, tire-a do ataque ou crie uma ameaça maior.', expr: 'worry', speak: true, key: 'th:' + (t.sq || []).join(','), marks: t.sq || [] });
+      });
+    } else out.push({ k: 'check', prio: 0, title: 'Xeque', text: 'Você está em xeque: é preciso responder a ele agora (mover o rei, bloquear ou capturar a peça que dá xeque).', expr: 'think', speak: false, key: 'check:' + o.fen });
+    out.sort(function (a, b) { return b.prio - a.prio; });
+    return out;
+  }
+
+  // comentário do lance do adversário (fatos: o que ele ameaça agora)
+  function opponentNote(fenBefore, uci) {
+    var mots = Coach.motifsOf(fenBefore, uci), san = sanOf(fenBefore, uci);
+    var t = topMotif(mots, ['mate', 'garfo', 'cravada', 'espeto', 'descoberto', 'captura']);
+    if (!t || t.k === 'mate') return null;
+    return { title: 'Lance do adversário', text: 'O adversário jogou ' + san + ', que ' + t.t + '.', expr: 'think', speak: false, key: 'opp:' + uci + fenBefore, marks: t.sq || [] };
+  }
+
+  // comentário de um lance na análise pós-partida (a partir do item já verificado pela análise)
+  function reviewOf(it, uc) {
+    var lead = { 'Brilhante': 'Brilhante!', 'Melhor jogada': 'Melhor jogada.', 'Excelente': 'Excelente.', 'Boa': 'Boa jogada.', 'Imprecisão': 'Imprecisão.', 'Erro': 'Erro.', 'Erro grave': 'Erro grave.', 'Única jogada possível': 'Lance forçado.' }[it.cls] || '';
+    var n = it.moveNo + (uc === 'w' ? '.' : '...') + ' ' + it.sanPT;
+    var t = [];
+    if (it.drop >= 5) {
+      if (it.bad.length) t.push(it.bad[0]);
+      if (it.refut && it.refut.text && it.drop >= 10) t.push(it.refut.text);
+      if (it.bestSan) t.push('O melhor era ' + sanPT(it.bestSan) + '.');
+      var w1 = (it.why || []).filter(function (x) { return x && x.length > 14 && t.join(' ').indexOf(x) < 0; })[0];
+      if (w1) t.push(w1);
+      if (it.conceptT) t.push('Lição: ' + it.conceptT + ' — ' + it.conceptD);
+    } else {
+      if (it.good.length) t.push(it.good[0]);
+      else if (it.isBest && (it.why || []).filter(function (x) { return x && x.length > 14; })[0]) t.push(it.why.filter(function (x) { return x && x.length > 14; })[0]);
+      else t.push(it.isBest ? 'É o lance que o Stockfish recomenda.' : 'O lance mantém a avaliação próxima da melhor.');
+      if (!it.isBest && it.bestSan && it.drop >= 2) t.push('Um pouco mais preciso: ' + sanPT(it.bestSan) + '.');
+    }
+    var expr = it.drop >= 20 ? 'worry' : it.drop >= 10 ? 'think' : (it.cls === 'Brilhante' || (it.isBest && it.sharp)) ? 'happy' : 'neutral';
+    return { title: n + ' — ' + lead, text: t.join(' '), expr: expr };
+  }
+
+  // ---------- texto para a voz: notação lida por extenso ----------
+  var PIECE_SPOKEN = { C: 'cavalo', B: 'bispo', T: 'torre', D: 'dama', R: 'rei' };
+  function spoken(text) {
+    var s = String(text);
+    s = s.replace(/\bO-O-O\b/g, 'roque grande').replace(/\bO-O\b/g, 'roque pequeno');
+    s = s.replace(/\b([CBTDR])?([a-h]?[1-8]?)(x)?([a-h][1-8])(=([CBTD]))?([+#])?(?=[\s,.;:!?)]|$)/g, function (all, p, dis, x, sq, pr, prp, ck) {
+      var w = [];
+      if (p) w.push(PIECE_SPOKEN[p]); else if (x && dis) w.push('peão de ' + dis);
+      if (x) w.push(p ? 'toma em' : (dis ? 'toma em' : 'toma'));
+      w.push(sq.charAt(0) + ' ' + sq.charAt(1));
+      if (prp) w.push('promovendo a ' + PIECE_SPOKEN[prp]);
+      if (ck === '+') w.push('xeque'); if (ck === '#') w.push('xeque-mate');
+      return w.join(' ');
+    });
+    s = s.replace(/([+−-])(\d+)\.(\d)/g, function (a, sg, i, d) { return (sg === '+' ? 'mais ' : 'menos ') + i + ',' + d; });
+    s = s.replace(/\s*\(avaliação:[^)]*\)/g, '').replace(/→/g, ' para ').replace(/≈/g, 'cerca de ').replace(/—/g, ', ');
+    return s;
+  }
+
+  // ---------- avatar (desenho próprio) ----------
+  function avatarSVG() {
+    return '<svg class="tav-svg" viewBox="0 0 100 100" aria-hidden="true">' +
+      '<circle cx="50" cy="50" r="49" class="tav-bg"/>' +
+      '<path d="M14 100c2-16 14-25 36-25s34 9 36 25z" class="tav-coat"/>' +
+      '<path d="M41 75l9 13 9-13z" fill="#f4f1ea"/><path d="M45 79l5 4 5-4-5 3z" class="tav-tie"/>' +
+      '<path d="M33 79l10 21M67 79l-10 21" stroke="rgba(0,0,0,.18)" stroke-width="1.4" fill="none"/>' +
+      '<g class="tav-pin"><circle cx="70" cy="88" r="3.4" fill="#e8c34a"/><path d="M68.6 90.2c0-1.5.8-2.3 1.7-3.1.3-.3 0-.6-.3-.4-.5.3-1.1.6-1.6.5-.5-.1-.6-.6-.3-1 .6-.8 1.4-1.5 1.8-2.1l.6.6.4-.6.5.8c1.6.2 2.4 1.5 2.4 3.4 0 .7-.1 1.3-.3 1.9z" fill="#6b4f12"/></g>' +
+      '<rect x="44" y="64" width="12" height="12" rx="5" class="tav-skin2"/>' +
+      '<g class="tav-head">' +
+      '<ellipse cx="27" cy="47" rx="4.5" ry="6.5" class="tav-skin2"/><ellipse cx="73" cy="47" rx="4.5" ry="6.5" class="tav-skin2"/>' +
+      '<path d="M28 44c0-15 9-25 22-25s22 10 22 25v8c0 14-9 22-22 22s-22-8-22-22z" class="tav-skin"/>' +
+      '<path d="M27 47c-1-9 1-17 5-21 1 6 2 10 2 15zM73 47c1-9-1-17-5-21-1 6-2 10-2 15z" class="tav-hair"/>' +
+      '<path d="M37 24c6-5 20-5 26 0-6-1-20-1-26 0z" class="tav-hair" opacity=".8"/>' +
+      '<path d="M30 52c1 12 8 21 20 21s19-9 20-21c-2 5-5 8-8 9-3-3-7-4-12-4s-9 1-12 4c-3-1-6-4-8-9z" class="tav-beard"/>' +
+      '<g class="tav-brows"><path class="tav-brow l" d="M35 38q5-3 10 0"/><path class="tav-brow r" d="M55 38q5-3 10 0"/></g>' +
+      '<g class="tav-eyes"><circle cx="40" cy="45" r="2.3"/><circle cx="60" cy="45" r="2.3"/></g>' +
+      '<g class="tav-glasses"><circle cx="40" cy="45" r="7"/><circle cx="60" cy="45" r="7"/><path d="M47 45h6M33 44l-5-2M67 44l5-2"/></g>' +
+      '<path d="M44 55q6-3 12 0" class="tav-mus"/>' +
+      '<g class="tav-mouth">' +
+      '<path class="m m-neutral" d="M44 60q6 4 12 0"/>' +
+      '<path class="m m-open" d="M44 59q6 7 12 0q-6 2-12 0z"/>' +
+      '<path class="m m-happy" d="M42 58q8 9 16 0q-8 3-16 0z"/>' +
+      '<ellipse class="m m-surprise" cx="50" cy="61" rx="3" ry="3.6"/>' +
+      '<path class="m m-worry" d="M44 62q6-4 12 0"/>' +
+      '</g></g></svg>';
+  }
+
+  // ---------- voz (Web Speech API, local) ----------
+  var Voice = {
+    on: false, rate: 1, uri: '', supported: typeof window !== 'undefined' && 'speechSynthesis' in window && typeof SpeechSynthesisUtterance !== 'undefined',
+    recent: [], speaking: false, onState: null,
+    voices: function () {
+      if (!this.supported) return [];
+      var all = window.speechSynthesis.getVoices() || [];
+      var pt = all.filter(function (v) { return /^pt[-_]BR/i.test(v.lang) || /brasil|brazil/i.test(v.name); });
+      if (!pt.length) pt = all.filter(function (v) { return /^pt/i.test(v.lang); });
+      var score = function (v) {
+        var n = v.name, s = 0;
+        if (/^pt[-_]BR/i.test(v.lang)) s += 50;
+        if (/natural|neural|online|premium|enhanced|aprimorad/i.test(n)) s += 20;      // vozes mais naturais
+        if (/francisca|thalita|antonio|luciana|felipe|google/i.test(n)) s += 10;
+        if (v.localService) s += 15;                                                   // funciona offline
+        return s;
+      };
+      return pt.sort(function (a, b) { return score(b) - score(a); });
+    },
+    pick: function () { var vs = this.voices(), u = this.uri; return vs.filter(function (v) { return v.voiceURI === u; })[0] || vs[0] || null; },
+    // say: fala um texto curto; ignora repetições recentes; prio>=2 interrompe a fala anterior
+    say: function (text, key, prio) {
+      if (!this.on || !this.supported || !text) return false;
+      var k = key || text;
+      if (this.recent.indexOf(k) >= 0) return false;
+      this.recent.push(k); if (this.recent.length > 12) this.recent.shift();
+      var ss = window.speechSynthesis;
+      if ((prio || 0) >= 2 || ss.pending) ss.cancel();
+      var u = new SpeechSynthesisUtterance(spoken(text));
+      var v = this.pick(); u.lang = v ? v.lang : 'pt-BR';
+      try { if (v) u.voice = v; } catch (e) { }
+      u.rate = this.rate; u.pitch = 1;
+      var self = this;
+      u.onstart = function () { self.speaking = true; if (self.onState) self.onState(true); };
+      u.onend = u.onerror = function () { self.speaking = ss.speaking; if (!ss.speaking && self.onState) self.onState(false); };
+      try { ss.speak(u); } catch (e) { return false; }
+      return true;
+    },
+    stop: function () { if (this.supported) window.speechSynthesis.cancel(); this.speaking = false; if (this.onState) this.onState(false); },
+    forget: function () { this.recent = []; },
+    // iOS/Android só liberam a voz depois de um toque do usuário
+    unlock: function () { if (!this.supported || this._unlocked) return; this._unlocked = true; try { var u = new SpeechSynthesisUtterance(' '); u.volume = 0; window.speechSynthesis.speak(u); } catch (e) { } }
+  };
+
+  return { judgeMove: judgeMove, watchHints: watchHints, opponentNote: opponentNote, reviewOf: reviewOf, spoken: spoken, avatarSVG: avatarSVG, Voice: Voice, classOf: classOf, pvSans: pvSans };
+})(ChessCore, Coach);
+if (typeof module !== 'undefined') module.exports = Tutor;
+
+</script>
+<script data-app="1">
 /* Conteúdo da Academia de Xadrez (original, armazenado localmente).
    Posições: "fen" ou "pgn" (lances em notação inglesa a partir da posição inicial).
    Lances nas respostas: notação inglesa (Nf3) ou coordenadas (g1f3); os textos usam a notação em português.
@@ -4124,6 +4447,19 @@ if (typeof module !== "undefined") module.exports = AcademyEvals;
         return out;
       }, function (e) { self.setBusy(-1); throw e; });
     },
+    // professor virtual: linhas principais da posição (força máxima), usadas para comentar o lance do aluno
+    watch: function (pos, mpv, movetime, depth) {
+      var self = this;
+      if (!(this.isSF() && this.sf)) return Promise.reject(new Error('stockfish indisponível'));
+      var cmds = ['setoption name Skill Level value 20'];
+      if (mpv !== this.multipv) { cmds.push('setoption name MultiPV value ' + mpv); this.multipv = mpv; }
+      cmds.push('position fen ' + pos.startFen + (pos.moves.length ? ' moves ' + pos.moves.join(' ') : ''));
+      cmds.push('go depth ' + depth + ' movetime ' + movetime);
+      return this.sfRun(cmds, movetime).then(function (r) {
+        var g = new C.Game(pos.fen);
+        return (r.lines || []).filter(function (l) { return !!g.moveFromUci(l.bestmove); }).map(function (l) { return { u: l.bestmove, s: l.score, pv: l.pv.slice(0, 12), d: l.depth }; });
+      });
+    },
     _internal: function (pos, mode, level) {
       var q = anParams();
       var L = mode === 'play' ? LEVELS[level].int : { timeMs: mode === 'analysis' ? q.intMs : (mode === 'teach' ? 1300 : 700), depth: mode === 'analysis' ? 8 : 6, temperature: 0 };
@@ -4425,8 +4761,8 @@ if (typeof module !== "undefined") module.exports = AcademyEvals;
     window.scrollTo(0, 0);
   }
 
-  var APP_VERSION = '6.0';
-  var CHANGELOG = { '6.0': ['Rating de 0 a 1000 em cada análise (medido pelas suas jogadas) e a sua média geral, no painel da análise e no Histórico.', 'Níveis do adversário mais fracos e mais humanos: Iniciante e Intermediário agora erram com frequência e deixam material e táticas para você aproveitar.', 'Versão para celular: menu inferior fixo com ícones, tabuleiro na largura da tela, painéis empilhados, botões maiores para o toque, enunciado da aula acima do tabuleiro e barra Anterior/Próximo sempre ao alcance. Nenhuma tela exige mais rolagem para os lados.', 'Stockfish 18 oficial (WebAssembly) embutido no lugar do Stockfish 11: no mesmo tempo, analisa cerca de 8 lances mais fundo e com avaliações mais precisas. O Stockfish 11 continua como reserva para aparelhos antigos.'], '5.2': ['Nova aba "Análise do treinador": momentos críticos dos dois jogadores, explicação em 6 partes de cada erro, comparação lado a lado da linha jogada com a melhor linha, avaliação estratégica e as 3 prioridades de treino.', 'Análise mais precisa: cada lance que perdeu avaliação é reverificado pelo Stockfish comparando o lance jogado e o melhor lance na mesma busca, com mais profundidade. Novas categorias: Melhor jogada, Excelente, Boa, Imprecisão, Erro, Erro grave.', 'Partidas antigas mostram um botão para reanalisar com a verificação.'], '5.1': ['Corrigido: o progresso da Academia não some mais depois de uma atualização. O progresso salvo na conta e o deste navegador agora são juntados (nenhuma aula concluída é apagada), e a tela é atualizada quando o progresso da conta termina de carregar.', 'Corrigido: nas demonstrações das aulas, os botões Avançar, Voltar e Reproduzir travavam a partir do 2º lance (afetava 11 aulas, entre elas "Evitar sair com a dama muito cedo").', 'Corrigido: ao voltar para uma etapa já resolvida, não era mais preciso refazê-la para seguir em frente; agora ela aparece resolvida, com opção de refazer.', 'As etapas mostram de que sequência de lances veio a posição.', 'Novo botão ⚑ Informar erro nas aulas, demonstrações e no Professor: registra o problema com a posição (FEN), os lances (PGN) e a etapa, salvo só neste aparelho, com opção de copiar e exportar.'], '5.0': ['Biblioteca com 12 aberturas interativas: tabuleiro, lances explicados um a um, planos, erros frequentes e exercícios.', 'Comparação de aberturas lado a lado (ex.: Siciliana × Francesa), com destaque da estrutura de peões.', 'Biblioteca de 15 conceitos visuais (desenvolvimento, centro, rei, táticas, estrutura, colunas, diagonais…), cada um com exercício.', 'Nova tela inicial da Análise com aberturas recomendadas e conceitos clicáveis.', 'Novo visual azul-noite com menu lateral (o tema claro continua nas configurações).'] };
+  var APP_VERSION = '6.1';
+  var CHANGELOG = { '6.1': ['Professor virtual com avatar e voz: comenta seus lances durante a partida com base no Stockfish 18 (bons lances, erros, peças desprotegidas, ameaças e oportunidades táticas).', 'Na análise, o professor explica cada lance, mostra a melhor jogada e as variantes e convida você a tentar de novo a posição.', 'Voz em português do Brasil usando a síntese do próprio aparelho (sem internet e sem custo): botão para ligar e desligar, velocidade e escolha de voz nas Configurações.'], '6.0': ['Rating de 0 a 1000 em cada análise (medido pelas suas jogadas) e a sua média geral, no painel da análise e no Histórico.', 'Níveis do adversário mais fracos e mais humanos: Iniciante e Intermediário agora erram com frequência e deixam material e táticas para você aproveitar.', 'Versão para celular: menu inferior fixo com ícones, tabuleiro na largura da tela, painéis empilhados, botões maiores para o toque, enunciado da aula acima do tabuleiro e barra Anterior/Próximo sempre ao alcance. Nenhuma tela exige mais rolagem para os lados.', 'Stockfish 18 oficial (WebAssembly) embutido no lugar do Stockfish 11: no mesmo tempo, analisa cerca de 8 lances mais fundo e com avaliações mais precisas. O Stockfish 11 continua como reserva para aparelhos antigos.'], '5.2': ['Nova aba "Análise do treinador": momentos críticos dos dois jogadores, explicação em 6 partes de cada erro, comparação lado a lado da linha jogada com a melhor linha, avaliação estratégica e as 3 prioridades de treino.', 'Análise mais precisa: cada lance que perdeu avaliação é reverificado pelo Stockfish comparando o lance jogado e o melhor lance na mesma busca, com mais profundidade. Novas categorias: Melhor jogada, Excelente, Boa, Imprecisão, Erro, Erro grave.', 'Partidas antigas mostram um botão para reanalisar com a verificação.'], '5.1': ['Corrigido: o progresso da Academia não some mais depois de uma atualização. O progresso salvo na conta e o deste navegador agora são juntados (nenhuma aula concluída é apagada), e a tela é atualizada quando o progresso da conta termina de carregar.', 'Corrigido: nas demonstrações das aulas, os botões Avançar, Voltar e Reproduzir travavam a partir do 2º lance (afetava 11 aulas, entre elas "Evitar sair com a dama muito cedo").', 'Corrigido: ao voltar para uma etapa já resolvida, não era mais preciso refazê-la para seguir em frente; agora ela aparece resolvida, com opção de refazer.', 'As etapas mostram de que sequência de lances veio a posição.', 'Novo botão ⚑ Informar erro nas aulas, demonstrações e no Professor: registra o problema com a posição (FEN), os lances (PGN) e a etapa, salvo só neste aparelho, com opção de copiar e exportar.'], '5.0': ['Biblioteca com 12 aberturas interativas: tabuleiro, lances explicados um a um, planos, erros frequentes e exercícios.', 'Comparação de aberturas lado a lado (ex.: Siciliana × Francesa), com destaque da estrutura de peões.', 'Biblioteca de 15 conceitos visuais (desenvolvimento, centro, rei, táticas, estrutura, colunas, diagonais…), cada um com exercício.', 'Nova tela inicial da Análise com aberturas recomendadas e conceitos clicáveis.', 'Novo visual azul-noite com menu lateral (o tema claro continua nas configurações).'] };
   var App = { view: 'home', settings: { color: 'w', level: 'intermediario', time: 'none', sound: true, coords: true, quality: 'normal', allowCdn: false } };
   try { var sv = JSON.parse(localStorage.getItem(LS_KEY + '-cfg') || 'null'); if (sv) App.settings = Object.assign(App.settings, sv); } catch (e) { }
 
@@ -4499,6 +4835,7 @@ if (typeof module !== "undefined") module.exports = AcademyEvals;
     $('#hint-box').hidden = true;
     renderGame();
     startClock();
+    tutorNewGame();
     if (G.game.turn !== G.userColor) engineMove();
   }
 
@@ -4582,7 +4919,7 @@ if (typeof module !== "undefined") module.exports = AcademyEvals;
     var g = G.game, now = performance.now();
     var san = g.san(m);
     var spent = now - G.turnStart;
-    var mover = g.turn;
+    var mover = g.turn, fenB = g.fen(), prefB = G.moves.map(function (x) { return x.uci; });
     if (G.clock.enabled) { G.clock.left[mover] -= spent; G.clock.left[mover] += G.clock.inc; }
     G.moves.push({ uci: C.uci(m), san: san, t: Math.round(spent), by: by, hint: by === 'user' && G.hintStage > 0 });
     if (m.captured) G.captured[mover].push(m.captured);
@@ -4600,6 +4937,8 @@ if (typeof module !== "undefined") module.exports = AcademyEvals;
     }
     var st = g.status();
     if (st) { endGame(st.result, st.reason); return; }
+    if (by === 'user') tutorUserMoved(fenB, C.uci(m), prefB);      // professor: começa a avaliar antes de o adversário pensar
+    else tutorEngineMoved(fenB, C.uci(m));
     if (g.turn !== G.userColor) engineMove();
   }
 
@@ -4633,7 +4972,7 @@ if (typeof module !== "undefined") module.exports = AcademyEvals;
     board.interactive = !viewing && !G.over && !G.thinking && g.turn === G.userColor;
     board.el.classList.toggle('live', board.interactive);
     board.sel = null; board.targets = [];
-    board.set(shown.b, hl, []);
+    board.set(shown.b, hl, [], (!viewing && TUT.marks.length && TUT.marksFen === g.fen()) ? { hl: TUT.marks } : {});
     $('#view-banner').hidden = !viewing;
     if (viewing) $('#view-banner-t').textContent = 'Vendo a posição após o lance ' + Math.ceil(G.view / 2) + (G.view % 2 ? '.' : '...') + ' ' + (G.view ? sanPT(G.moves[G.view - 1].san) : 'início') + ' (a partida continua na posição atual).';
     // jogadores
@@ -4716,6 +5055,7 @@ if (typeof module !== "undefined") module.exports = AcademyEvals;
     var rec0 = { result: result, userColor: G.userColor };
     G.resultLabel = resultText(rec0) + ' por ' + REASONS[reason] + ' (' + result + ')';
     renderGame();
+    tutorGameOver(result, reason);
     var rec = gameRecord();
     dialog(resultText(rec0) + ' — ' + REASONS[reason], '<p>Resultado: <b>' + result + '</b>. A análise completa começa agora: cada lance seu será avaliado pelo motor (' + esc(Engine.label()) + ').</p>', [{ label: 'Ver o tabuleiro final', value: 'stay' }, { label: 'Ver análise', primary: true, value: 'go' }])
       .then(function (v) { if (v === 'go') show('analysis'); });
@@ -4741,6 +5081,7 @@ if (typeof module !== "undefined") module.exports = AcademyEvals;
       if (m.by === 'user') break;
     }
     G.takebacks++; G.turnStart = performance.now(); G.hintStage = 0; G.hintData = null; $('#hint-box').hidden = true;
+    tutorReset();
     renderGame();
     toast('Lance desfeito. Desfazer lances fica registrado e é mencionado na análise.');
   }
@@ -4957,6 +5298,7 @@ if (typeof module !== "undefined") module.exports = AcademyEvals;
     bindRetryPanel();
     renderEvalGraph();
     $$('.mi').forEach(function (el) { el.classList.toggle('on', +el.dataset.ply === AN.ply && !AN.variation); });
+    tutorAnalysis();
   }
   function navTo(ply, anim) {
     if (!AN || AN.retry) return;
@@ -5721,6 +6063,220 @@ if (typeof module !== "undefined") module.exports = AcademyEvals;
       return true;
     } catch (e) { return false; }
   }
+  // =====================================================================
+  // PROFESSOR VIRTUAL — avatar, balão e voz ligados aos eventos reais da partida e da análise.
+  // Toda frase vem do módulo Tutor, que só comenta o que o Stockfish e o tabuleiro confirmam.
+  // =====================================================================
+  var TUT = { tok: 0, watch: null, watchFor: null, marks: [], marksFen: null, shownAt: 0, cur: null, timer: null, anKey: null, anTimer: null };
+  var TV = Tutor.Voice;
+  function tutorOn() { return App.settings.tutor !== false; }
+  function tutorHints() { return App.settings.tutorHints !== false; }
+  function tutorLight() { return window.innerWidth < 860 || (navigator.hardwareConcurrency || 4) <= 4; }
+  function tutorSync() { TV.on = !!App.settings.tutorVoice; TV.rate = App.settings.tutorRate || 1; TV.uri = App.settings.tutorVoiceURI || ''; }
+  function tutorDock(id) {
+    return '<div class="tutor" id="' + id + '" aria-live="polite">' +
+      '<div class="tav expr-neutral" title="Professor">' + Tutor.avatarSVG() + '</div>' +
+      '<div class="tbub"><div class="tb-h"><b class="tb-t">Professor</b><span class="tb-a">' +
+      '<button class="tb-btn" data-tvoice title="Ativar ou desativar a voz do professor" aria-label="Voz do professor"></button>' +
+      '<button class="tb-btn" data-trep title="Ouvir de novo" aria-label="Ouvir de novo">↺</button></span></div>' +
+      '<div class="tb-x"></div><div class="tb-acts"></div></div></div>';
+  }
+  function tutorEls(id) { var el = document.getElementById(id); return el ? { el: el, av: $('.tav', el), t: $('.tb-t', el), x: $('.tb-x', el), acts: $('.tb-acts', el) } : null; }
+  function tutorVoiceBtns() {
+    $$('[data-tvoice]').forEach(function (b) { b.textContent = TV.on ? '🔊' : '🔇'; b.classList.toggle('on', TV.on); b.title = TV.supported ? (TV.on ? 'Voz ligada (toque para desligar)' : 'Voz desligada (toque para ligar)') : 'Este navegador não oferece voz'; });
+  }
+  function tutorExpr(E, expr, talk) {
+    if (!E) return;
+    E.av.className = 'tav expr-' + (expr || 'neutral') + (talk ? ' talk' : '');
+    if (expr === 'happy' || expr === 'surprise') { E.av.classList.remove('pop'); void E.av.offsetWidth; E.av.classList.add('pop'); }
+  }
+  // mostra uma mensagem no balão; fala se ela for importante e a voz estiver ligada
+  function tutorShow(id, msg, acts) {
+    var E = tutorEls(id); if (!E || !msg) return;
+    E.t.textContent = msg.title || 'Professor';
+    E.x.textContent = msg.text || '';
+    E.el.dataset.speech = msg.text || '';
+    E.el.classList.remove('idle'); E.el.classList.toggle('alert', /worry|surprise/.test(msg.expr || ''));
+    E.acts.innerHTML = (acts || []).map(function (a, i) { return '<button class="btn sm' + (a.primary ? ' primary' : ' ghost') + '" data-tact="' + i + '">' + a.label + '</button>'; }).join('');
+    $$('[data-tact]', E.acts).forEach(function (b) { b.onclick = function () { acts[+b.dataset.tact].fn(); }; });
+    var spoke = msg.speak && TV.say(msg.text, msg.key, msg.prio || 1);
+    tutorExpr(E, msg.expr, true);
+    clearTimeout(E.el._talk);
+    E.el._talk = setTimeout(function () { if (!TV.speaking) tutorExpr(E, msg.expr === 'surprise' ? 'worry' : msg.expr, false); }, spoke ? 1800 : Math.min(2600, 700 + (msg.text || '').length * 18));
+    if (id === 'tutor-game') { TUT.cur = msg; TUT.shownAt = Date.now(); }
+  }
+  TV.onState = function (on) {
+    ['tutor-game', 'tutor-an'].forEach(function (id) { var E = tutorEls(id); if (!E) return; E.av.classList.toggle('talk', on); });
+  };
+  // fila curta: um aviso novo não apaga um comentário importante antes de ele ser lido
+  function tutorQueue(msg, acts) {
+    var tok = TUT.tok, wait = 0;
+    if (TUT.cur && TUT.cur.speak && TUT.cur.expr !== 'neutral') wait = Math.max(0, 2600 - (Date.now() - TUT.shownAt));
+    clearTimeout(TUT.timer);
+    TUT.timer = setTimeout(function () { if (tok === TUT.tok && G && !G.over) tutorShow('tutor-game', msg, acts); }, wait);
+  }
+  function posOf(fen) { return { fen: fen, startFen: G.startFen, moves: G.moves.map(function (x) { return x.uci; }) }; }
+  function tutorParams() { return tutorLight() ? { ms: 350, depth: 14, vms: 300 } : { ms: 600, depth: 16, vms: 450 }; }
+
+  // ---- eventos da partida ----
+  function tutorNewGame() {
+    TUT.tok++; TUT.watch = null; TUT.watchFor = null; TUT.marks = []; TV.forget(); TV.stop();
+    var E = tutorEls('tutor-game'); if (!E) return;
+    E.el.hidden = !tutorOn(); if (!tutorOn()) return;
+    tutorVoiceBtns();
+    var sfOk = Engine.isSF();
+    tutorShow('tutor-game', { title: 'Boa partida!', text: sfOk ? 'Vou acompanhar a partida com o Stockfish 18: comento seus lances, aviso de ameaças e aponto oportunidades táticas. Você joga de ' + (G.userColor === 'w' ? 'brancas' : 'pretas') + '.' : 'O Stockfish ainda não carregou. Assim que ele estiver ativo, passo a comentar seus lances.', expr: 'happy', speak: true, key: 'hello' });
+    if (G.game.turn === G.userColor) tutorWatch();
+  }
+  // análise da posição enquanto o aluno pensa (não atrasa o adversário: roda na vez do aluno)
+  function tutorWatch() {
+    if (!tutorOn() || !G || G.over || !Engine.isSF() || G.game.turn !== G.userColor) return;
+    var fen = G.game.fen(), tok = TUT.tok, P = tutorParams();
+    TUT.watchFor = fen;
+    TUT.watch = Engine.watch(posOf(fen), 3, P.ms, P.depth).then(function (lines) {
+      if (tok !== TUT.tok || !G || G.game.fen() !== fen) return lines;
+      if (tutorHints()) {
+        var hs = Tutor.watchHints({ fen: fen, lines: lines });
+        var h = hs.filter(function (x) { return x.k !== 'check'; })[0];
+        if (h) {
+          TUT.marks = (h.marks || []).slice(); TUT.marksFen = fen; renderGame();
+          var acts = [];
+          if (h.hintSq !== undefined) acts.push({ label: 'Mostrar a peça', fn: function () { TUT.marks = [h.hintSq]; TUT.marksFen = fen; renderGame(); } });
+          tutorQueue(h, acts);
+        }
+      }
+      return lines;
+    }).catch(function () { return null; });
+  }
+  // o aluno jogou `uci` a partir de `fen` (chamado ANTES de o motor começar a responder)
+  function tutorUserMoved(fen, uci, prefix) {
+    if (!tutorOn() || !Engine.isSF()) return;
+    var tok = ++TUT.tok, P = tutorParams();
+    TUT.marks = []; clearTimeout(TUT.timer);
+    if (TV.speaking) TV.stop();
+    var pos = { fen: fen, startFen: G.startFen, moves: prefix };
+    var finish = function (best, played) {
+      if (tok !== TUT.tok || !G) return;
+      var r = Tutor.judgeMove({ fen: fen, uci: uci, best: best, played: played });
+      if (!r) return;
+      r.prio = 2;
+      var acts = [];
+      if (r.drop >= 10 && G && !G.over && App.settings.allowUndoTutor !== false) acts.push({ label: '↶ Voltar e tentar outro lance', fn: function () { $('#btn-undo').click(); } });
+      tutorShow('tutor-game', r, acts);
+      G.tutorLog = G.tutorLog || []; G.tutorLog.push({ ply: prefix.length, cls: r.cls, text: r.text });
+    };
+    var useLines = function (lines) {
+      var played = lines && lines.filter(function (l) { return l.u === uci; })[0];
+      if (lines && lines.length && played) { finish(lines[0], played); return; }
+      var bestU = lines && lines.length ? lines[0].u : null;
+      Engine.verify(pos, bestU ? [bestU, uci] : [uci], P.depth - 2, P.vms).then(function (v) {
+        var b = bestU && v[bestU] ? { u: bestU, s: v[bestU].s, pv: v[bestU].pv } : (lines && lines[0]) || null;
+        if (!v[uci] || !b) return;   // sem a referência do melhor lance, o professor não arrisca um veredito
+        finish(b, { s: v[uci].s, pv: v[uci].pv });
+      }).catch(function () { });
+    };
+    // sem a análise prévia da posição (aluno jogou muito rápido): busca as linhas principais agora
+    var lp = (TUT.watch && TUT.watchFor === fen) ? TUT.watch : Engine.watch(pos, 3, P.vms, P.depth - 2).catch(function () { return null; });
+    lp.then(function (lines) { if (lines && lines.length) useLines(lines); });
+  }
+  function tutorEngineMoved(fenBefore, uci) {
+    if (!tutorOn() || !G || G.over) return;
+    var n = Tutor.opponentNote(fenBefore, uci);
+    if (n && tutorHints()) { TUT.marks = n.marks || []; TUT.marksFen = G.game.fen(); tutorQueue(n); }
+    tutorWatch();
+  }
+  function tutorGameOver(result, reason) {
+    if (!tutorOn()) return;
+    TUT.tok++; clearTimeout(TUT.timer); TUT.marks = [];
+    var uc = G.userColor, win = (result === '1-0' && uc === 'w') || (result === '0-1' && uc === 'b'), draw = result === '1/2-1/2';
+    var msg = win ? { title: 'Vitória!', text: 'Parabéns pela vitória' + (reason === 'checkmate' ? ' por xeque-mate' : '') + '! Na análise, vamos ver os momentos decisivos e o que ainda pode melhorar.', expr: 'happy' }
+      : draw ? { title: 'Empate', text: 'Partida empatada (' + (REASONS[reason] || reason) + '). Na análise, mostro onde havia chances de jogar pela vitória.', expr: 'neutral' }
+      : { title: 'Fim de partida', text: 'Não foi desta vez, mas cada derrota ensina. Vou mostrar na análise os lances que mudaram a partida e como evitá-los.', expr: 'worry' };
+    msg.speak = true; msg.key = 'end:' + result; msg.prio = 2;
+    tutorShow('tutor-game', msg);
+  }
+  function tutorReset() { TUT.tok++; TUT.watch = null; TUT.watchFor = null; TUT.marks = []; clearTimeout(TUT.timer); if (G && G.game.turn === G.userColor && !G.over) setTimeout(tutorWatch, 50); }
+
+  // ---- análise pós-partida ----
+  function tutorAnalysis() {
+    var E = tutorEls('tutor-an'); if (!E) return;
+    E.el.hidden = !tutorOn() || !AN || !AN.rep; if (E.el.hidden) return;
+    tutorVoiceBtns();
+    var uc = AN.rec.userColor, msg, acts = [], key;
+    if (AN.retry) {
+      var rr = AN.retry; key = 'rt:' + rr.item.ply + ':' + rr.tries + ':' + rr.kind + ':' + rr.done;
+      msg = { title: 'Tentar de novo — lance ' + rr.item.moveNo, text: rr.msg, expr: rr.kind === 'ok' ? 'happy' : rr.kind === 'bad' ? 'worry' : 'think', speak: rr.tries > 0 || rr.done, key: key };
+    } else if (AN.variation) {
+      var p = analysisPosition(); key = 'var:' + AN.variation.title + AN.variation.k;
+      msg = { title: AN.variation.title, text: p.caption || (AN.variation.k === 0 ? 'Aperte ▶ para ver a variante lance a lance; eu explico cada passo.' : AN.variation.sans.slice(0, AN.variation.k).join(' ')), expr: 'neutral', speak: !!p.caption, key: key };
+    } else {
+      var it = itemAt(AN.ply - 1) || itemAt(AN.ply);
+      if (!it) {
+        key = 'an:none:' + AN.ply;
+        var s = AN.rep.summary, worst = AN.rep.items.filter(function (x) { return x.drop >= 10; }).length;
+        msg = { title: 'Análise da partida', text: 'Precisão ' + Math.round(s.acc) + '% e rating ' + (s.rating !== undefined ? s.rating : Coach.ratingOf(s)) + '/1000 nesta partida. ' + (worst ? 'Encontrei ' + worst + ' momento' + (worst > 1 ? 's' : '') + ' em que a avaliação caiu bastante: use "Próximo erro" para revê-los comigo.' : 'Nenhum erro grave: partida sólida! Veja os lances em que havia algo ainda melhor.'), expr: worst ? 'think' : 'happy', speak: false, key: key };
+      } else {
+        key = 'an:' + it.ply;
+        var rv = Tutor.reviewOf(it, uc);
+        msg = { title: rv.title, text: rv.text, expr: rv.expr, speak: it.drop >= 5 || it.cls === 'Brilhante', key: key };
+        if (it.pv && it.pv.length && !it.isBest) acts.push({ label: '▶ Melhor linha', fn: function () { startVariation(it, 'best'); } });
+        if (it.refut && it.drop >= 10) acts.push({ label: '▶ Resposta ao seu lance', fn: function () { startVariation(it, 'refut'); } });
+        if (it.drop >= 5) acts.push({ label: '↻ Tentar de novo', primary: true, fn: function () { startRetry(it); } });
+      }
+      var nx = AN.rep.items.filter(function (x) { return x.drop >= 10 && x.ply > (AN.ply - 1); })[0];
+      if (nx) acts.push({ label: 'Próximo erro ›', fn: function () { selectItem(nx.ply); } });
+    }
+    if (key === TUT.anKey) return;
+    TUT.anKey = key;
+    clearTimeout(TUT.anTimer);
+    msg.speak = msg.speak && !!TV.on;
+    tutorShow('tutor-an', Object.assign({}, msg, { speak: false }), acts);
+    if (msg.speak) TUT.anTimer = setTimeout(function () { if (TUT.anKey === key) TV.say(msg.text, key, 2); }, 450);   // espera a navegação parar antes de falar
+  }
+
+  // ---- botões do balão (voz liga/desliga, repetir) ----
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest && e.target.closest('[data-tvoice],[data-trep]');
+    TV.unlock();
+    if (!b) return;
+    if (b.hasAttribute('data-tvoice')) {
+      if (!TV.supported) { toast('Este navegador não oferece síntese de voz.'); return; }
+      App.settings.tutorVoice = !App.settings.tutorVoice; saveCfg(); tutorSync(); tutorVoiceBtns();
+      if (TV.on) { if (!TV.voices().length) toast('Nenhuma voz em português foi encontrada neste aparelho; será usada a voz padrão.', 4500); TV.forget(); TV.say('Voz ativada.', 'voz-on', 2); } else TV.stop();
+    } else {
+      var host = b.closest('.tutor'); if (!host) return;
+      var txt = host.dataset.speech; if (!txt) return;
+      if (!TV.on) { toast('Ative a voz (🔇) para ouvir o professor.'); return; }
+      TV.recent = TV.recent.filter(function (k) { return k !== 'rep:' + txt; }); TV.say(txt, 'rep:' + txt + Date.now(), 2);
+    }
+  });
+  if (TV.supported && window.speechSynthesis.addEventListener) window.speechSynthesis.addEventListener('voiceschanged', function () { tutorVoiceBtns(); });
+  tutorSync();
+
+  function tutorSettingsHtml(s) {
+    var vs = TV.voices();
+    return '<div class="set"><h4>Professor virtual</h4>' +
+      '<label class="chk"><input type="checkbox" id="set-tutor"' + (s.tutor !== false ? ' checked' : '') + '> Mostrar o professor durante as partidas e na análise</label>' +
+      '<label class="chk"><input type="checkbox" id="set-thints"' + (s.tutorHints !== false ? ' checked' : '') + '> Avisar sobre ameaças e oportunidades táticas durante a partida</label>' +
+      '<label class="chk"><input type="checkbox" id="set-tvoice"' + (s.tutorVoice ? ' checked' : '') + (TV.supported ? '' : ' disabled') + '> Voz do professor (fala só os comentários importantes, sem repetir)</label>' +
+      '<label class="inl">Velocidade da fala <input type="range" id="set-trate" min="0.7" max="1.5" step="0.05" value="' + (s.tutorRate || 1) + '"> <span id="set-trate-v">' + (s.tutorRate || 1).toFixed(2) + '×</span></label>' +
+      (vs.length ? '<label class="inl">Voz <select id="set-tvuri">' + vs.map(function (v) { return '<option value="' + esc(v.voiceURI) + '"' + (s.tutorVoiceURI === v.voiceURI ? ' selected' : '') + '>' + esc(v.name) + (v.localService ? ' (no aparelho, funciona offline)' : ' (on-line)') + '</option>'; }).join('') + '</select></label> <button class="btn sm ghost" id="set-ttest">Testar voz</button>' : '<p class="sm muted">' + (TV.supported ? 'Nenhuma voz em português encontrada neste aparelho; o navegador usará a voz padrão. No Windows, instale "Português (Brasil)" em Configurações → Hora e idioma → Fala.' : 'Este navegador não oferece síntese de voz.') + '</p>') +
+      '<p class="sm muted">A voz usa a síntese do próprio aparelho (Windows, Android ou iPhone): não consome tokens nem internet quando a voz escolhida é "no aparelho". Os comentários vêm da análise do Stockfish 18 e do tabuleiro; nada é inventado.</p></div>';
+  }
+  function tutorSettingsBind(s) {
+    var q = function (id) { return document.getElementById(id); };
+    if (q('set-tutor')) q('set-tutor').onchange = function (e) { s.tutor = e.target.checked; saveCfg(); var d = q('tutor-game'); if (d) d.hidden = !s.tutor; TUT.anKey = null; tutorAnalysis(); };
+    if (q('set-thints')) q('set-thints').onchange = function (e) { s.tutorHints = e.target.checked; saveCfg(); };
+    if (q('set-tvoice')) q('set-tvoice').onchange = function (e) { s.tutorVoice = e.target.checked; saveCfg(); tutorSync(); tutorVoiceBtns(); if (!TV.on) TV.stop(); };
+    if (q('set-trate')) q('set-trate').oninput = function (e) { s.tutorRate = +e.target.value; q('set-trate-v').textContent = s.tutorRate.toFixed(2) + '×'; saveCfg(); tutorSync(); };
+    if (q('set-tvuri')) q('set-tvuri').onchange = function (e) { s.tutorVoiceURI = e.target.value; saveCfg(); tutorSync(); };
+    if (q('set-ttest')) q('set-ttest').onclick = function () { var was = TV.on; TV.on = true; TV.unlock(); TV.forget(); TV.say('Olá! Eu sou o seu professor de xadrez. Depois de Cf3, o cavalo controla o centro.', 'teste' + Date.now(), 2); TV.on = was; };
+  }
+  // o professor nunca pode travar a partida: qualquer falha dele é isolada
+  function tsafe(f) { return function () { try { return f.apply(null, arguments); } catch (e) { try { console.warn('professor:', e && e.message); } catch (e2) { } } }; }
+  tutorNewGame = tsafe(tutorNewGame); tutorUserMoved = tsafe(tutorUserMoved); tutorEngineMoved = tsafe(tutorEngineMoved);
+  tutorGameOver = tsafe(tutorGameOver); tutorReset = tsafe(tutorReset); tutorAnalysis = tsafe(tutorAnalysis); tutorWatch = tsafe(tutorWatch);
+
   function openSettings() {
     var s = App.settings, k = Engine.kind;
     var engineState = Engine.isSF() ? '<span class="dot ok"></span> <b>' + esc(Engine.label()) + '</b> ativo' : '<span class="dot warn"></span> <b>Motor interno</b> ativo' + (Engine.sfError ? ' <small class="muted">(último erro: ' + esc(Engine.sfError) + ')</small>' : '');
@@ -5737,6 +6293,7 @@ if (typeof module !== "undefined") module.exports = AcademyEvals;
       '<div class="set"><h4>Aparência</h4><label class="inl">Tema <select id="set-theme"><option value="azul"' + ((s.theme || 'azul') === 'azul' ? ' selected' : '') + '>Azul-noite (padrão)</option><option value="claro"' + (s.theme === 'claro' ? ' selected' : '') + '>Claro</option><option value="auto"' + (s.theme === 'auto' ? ' selected' : '') + '>Automático (segue o sistema)</option></select></label></div>' +
       '<div class="set"><h4>Relatos de erro</h4><p class="sm">Problemas que você registrou com o botão <b>⚑ Informar erro</b> (salvos só neste navegador). Daqui você pode consultar, copiar e exportar.</p><button class="btn sm" data-reports>⚑ Ver relatos de erro<span data-repcount></span></button></div>' +
       '<div class="set"><h4>Atualizações</h4><p class="sm">Versão instalada: <b>' + APP_VERSION + '</b>. O aplicativo <b>não procura nem baixa atualizações sozinho</b> e não consulta servidores externos. Aulas, aberturas, exercícios e o Stockfish ficam dentro do próprio aplicativo, e o seu progresso fica salvo neste dispositivo (e na sua conta, quando disponível).</p><p class="sm muted">Versão web: quando uma nova versão for publicada, ela é baixada uma única vez e passa a valer na próxima abertura do aplicativo; o seu progresso e o histórico são mantidos.</p><details><summary class="sm">O que mudou na versão ' + APP_VERSION + '</summary><ul class="sm">' + CHANGELOG[APP_VERSION].map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></details></div>' +
+      tutorSettingsHtml(s) +
       '<div class="set"><h4>Interface</h4><label class="chk"><input type="checkbox" id="set-sound"' + (s.sound ? ' checked' : '') + '> Sons dos lances</label><label class="chk"><input type="checkbox" id="set-coords"' + (s.coords !== false ? ' checked' : '') + '> Mostrar coordenadas no tabuleiro</label></div>' +
       '<div class="set"><h4>Uso offline</h4><p class="sm muted">O aplicativo não usa tokens nem serviços externos: regras, motor interno, análise e explicações rodam no seu navegador. Para jogar sem internet, baixe o app como arquivo HTML e abra-o no navegador; com o Stockfish carregado no arquivo baixado, a análise também é local.</p><div class="row"><button class="btn sm" id="set-offline">Baixar o app (.html)</button><button class="btn ghost sm" id="set-backup">Fazer backup (partidas e progresso, .json)</button><label class="btn ghost sm">Restaurar backup<input type="file" id="set-restore" accept=".json" hidden></label></div></div>';
     dialog('Configurações', html, [{ label: 'Fechar', primary: true, value: true }]);
@@ -5760,6 +6317,7 @@ if (typeof module !== "undefined") module.exports = AcademyEvals;
     $('#set-ms').onchange = function (e) { s.maxMs = Math.round(Math.max(0.5, Math.min(30, +e.target.value || 2)) * 1000); saveCfg(); };
     $('#set-xl').onchange = function (e) { s.explainLevel = e.target.value; saveCfg(); };
     $('#set-theme').onchange = function (e) { s.theme = e.target.value; saveCfg(); applyTheme(); };
+    tutorSettingsBind(s);
     $('#set-sound').onchange = function (e) { s.sound = e.target.checked; saveCfg(); if (s.sound) Sound.play('move'); };
     $('#set-coords').onchange = function (e) { s.coords = e.target.checked; saveCfg(); board.render(); aboard.render(); tboard.render(); };
     $('#set-offline').onclick = async function () { toast('Preparando o arquivo com o Stockfish embutido…', 4000); var h = await offlineHtml(); if (!h) { toast('Não foi possível gerar o arquivo.'); return; } var ok = await saveFile('xadrez-com-treinador.html', h, 'text/html'); if (!ok) toast('O download não foi permitido nesta visualização.'); };
@@ -6792,6 +7350,9 @@ if (typeof module !== "undefined") module.exports = AcademyEvals;
   function applyTheme() { document.documentElement.setAttribute('data-theme', App.settings.theme || 'azul'); }
   function init() {
     applyTheme();
+    $('#view-game .side').insertAdjacentHTML('afterbegin', tutorDock('tutor-game'));
+    $('#view-analysis .an-nav').insertAdjacentHTML('afterend', tutorDock('tutor-an'));
+    $('#tutor-game').hidden = !tutorOn(); $('#tutor-an').hidden = true;
     $$('[data-piece]').forEach(function (el) { el.innerHTML = Pieces.svg(el.dataset.piece); });
     board = new Board($('#board'), {
       canSelect: canSelect, targetsFor: legalTargets,
