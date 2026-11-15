@@ -1,5 +1,5 @@
 /* Service worker: guarda o aplicativo e o Stockfish 18 no aparelho para funcionar offline. */
-var CACHE = 'xadrez-6.0-990807e810';
+var CACHE = 'xadrez-6.1-2410e0f8b2';
 var PRECACHE = ["./", "index.html", "manifest.webmanifest", "engine/stockfish-18-lite-single.js", "engine/stockfish-18-lite-single.wasm.part1", "engine/stockfish-18-lite-single.wasm.part2", "engine/stockfish-18-lite-single.wasm.part3", "engine/COPYING.txt", "icons/icon-192.png", "icons/icon-512.png", "icons/apple-touch-icon.png", "icons/maskable-512.png"];
 self.addEventListener('install', function (e) {
   e.waitUntil(caches.open(CACHE).then(function (c) { return c.addAll(PRECACHE); }).then(function () { return self.skipWaiting(); }));
